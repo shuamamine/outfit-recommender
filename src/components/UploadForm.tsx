@@ -3,18 +3,17 @@ import { useDropzone } from 'react-dropzone';
 import { motion } from 'framer-motion';
 
 interface UploadFormProps {
-  onImageUpload: (imageUrl: string) => void;
+  onImageUpload: (file: File,imageUrl: string) => void;
 }
 
 const UploadForm: React.FC<UploadFormProps> = ({ onImageUpload }) => {
   const onDrop = useCallback((acceptedFiles: File[]) => {
     const file = acceptedFiles[0];
     if (file) {
-      const imageUrl = URL.createObjectURL(file);
-      onImageUpload(imageUrl);
+      const imageUrl = URL.createObjectURL(file); // for preview
+      onImageUpload(file, imageUrl); // send both
     }
   }, [onImageUpload]);
-
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
     accept: {

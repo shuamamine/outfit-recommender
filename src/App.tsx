@@ -4,7 +4,7 @@ import { Sun, Moon } from 'lucide-react';
 import UploadForm from './components/UploadForm';
 import OutputGallery from './components/OutputGallery';
 import LoadingGame from './components/LoadingGame';
-
+import axios from 'axios';
 interface StylizedImage {
   url: string;
   occasion: 'Office' | 'Party' | 'Vacation';
@@ -19,6 +19,7 @@ interface HistoryItem {
 
 function App() {
   const [uploadedImage, setUploadedImage] = useState<string | null>(null);
+  const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [history, setHistory] = useState<HistoryItem[]>([]);
@@ -39,36 +40,41 @@ function App() {
     }
   }, [isDarkMode]);
 
-  const handleImageUpload = (imageUrl: string) => {
+  const handleImageUpload = (file: File,imageUrl: string) => {
+    setUploadedFile(file);  
     setUploadedImage(imageUrl);
   };
 
   const handleGenerateStyles = async () => {
-    if (!uploadedImage) return;
     
-    setIsLoading(true);
+      if (!uploadedFile) return;
     
-    // Simulate API call with timeout
-    setTimeout(() => {
-      // Dummy data for demonstration
-      const dummyImages: StylizedImage[] = [
-        { url: 'https://picsum.photos/400/600', occasion: 'Office' },
-        { url: 'https://picsum.photos/400/600', occasion: 'Party' },
-        { url: 'https://picsum.photos/400/600', occasion: 'Vacation' },
-      ];
-      
-      // Add new results to history
-      const newHistoryItem: HistoryItem = {
-        sessionId: `session-${Date.now()}`,
-        uploaded: uploadedImage,
-        results: dummyImages,
-        createdAt: Date.now(),
-      };
-      
-      setHistory(prevHistory => [newHistoryItem, ...prevHistory]);
-      setIsLoading(false);
-    }, 5000);
-  };
+      setIsLoading(true);
+      const formData = new FormData();
+      formData.append('image', uploadedFile);
+    
+      try {
+        const response = await axios.post('http://localhost:5000/generate-styles', formData, {
+          headers: { 'Content-Type': 'multipart/form-data' }
+        });
+    
+        const results: StylizedImage[] = response.data; // Expecting an array of { url, occasion }
+    
+        const newHistoryItem: HistoryItem = {
+          sessionId: `session-${Date.now()}`,
+          uploaded: uploadedImage, // for preview, optional
+          results,
+          createdAt: Date.now(),
+        };
+    
+        setHistory(prevHistory => [newHistoryItem, ...prevHistory]);
+      } catch (err) {
+        console.error('Upload failed:', err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
 
   return (
     <div className="min-h-screen bg-background-light dark:bg-background-dark transition-colors duration-200">
