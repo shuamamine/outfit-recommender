@@ -5,6 +5,8 @@ import UploadForm from './components/UploadForm';
 import OutputGallery from './components/OutputGallery';
 import LoadingGame from './components/LoadingGame';
 import axios from 'axios';
+import backend_url  from './config';
+
 interface StylizedImage {
   url: string;
   occasion: 'Office' | 'Party' | 'Vacation';
@@ -23,6 +25,7 @@ function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [history, setHistory] = useState<HistoryItem[]>([]);
+  const [isHistoryLoading, setIsHistoryLoading] = useState(true);
 
   useEffect(() => {
     // Check system preference for dark mode
@@ -39,43 +42,66 @@ function App() {
       document.documentElement.classList.remove('dark');
     }
   }, [isDarkMode]);
+  
+  // Fetch history on component mount
+  useEffect(() => {
+    fetchHistory();
+  }, []);
 
-  const handleImageUpload = (file: File,imageUrl: string) => {
+  const fetchHistory = async () => {
+    setIsHistoryLoading(true);
+    try {
+      const response = await axios.get(backend_url+'history');
+      setHistory(response.data);
+    } catch (err) {
+      console.error('Failed to fetch history:', err);
+    } finally {
+      setIsHistoryLoading(false);
+    }
+  };
+
+  const handleImageUpload = (file: File, imageUrl: string) => {
     setUploadedFile(file);  
     setUploadedImage(imageUrl);
   };
 
   const handleGenerateStyles = async () => {
+    if (!uploadedFile) return;
+  
+    setIsLoading(true);
+    const formData = new FormData();
+    formData.append('image', uploadedFile);
+  
+    try {
+      const response = await axios.post(backend_url+'/generate-styles', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+  
+      const results = response.data; // Expecting an array of { url, occasion }
+      const imageUrls = results.generated_images || {};
+      const images = Object.entries(imageUrls).map(([occasion, url]) => ({
+        url: url as string,
+        occasion: occasion.charAt(0).toUpperCase() + occasion.slice(1) as 'Office' | 'Party' | 'Vacation',
+      }));
+      const newHistoryItem = {
+        sessionId: `session-${Date.now()}`,
+        uploaded: uploadedImage || '', // Ensure it's a string
+        results: images,
+        createdAt: Date.now(),
+      };
+  
+      setHistory((prevHistory: HistoryItem[]) => [newHistoryItem, ...prevHistory]);
+    } catch (err) {
+      console.error('Upload failed:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  const getImageSrc = (path: string) => {
+    if (path.startsWith('https') || path.startsWith('blob')) return path;
+    return `${backend_url}${path}`;
+  };
     
-      if (!uploadedFile) return;
-    
-      setIsLoading(true);
-      const formData = new FormData();
-      formData.append('image', uploadedFile);
-    
-      try {
-        const response = await axios.post('http://localhost:5000/generate-styles', formData, {
-          headers: { 'Content-Type': 'multipart/form-data' }
-        });
-    
-        const results: StylizedImage[] = response.data; // Expecting an array of { url, occasion }
-    
-        const newHistoryItem: HistoryItem = {
-          sessionId: `session-${Date.now()}`,
-          uploaded: uploadedImage, // for preview, optional
-          results,
-          createdAt: Date.now(),
-        };
-    
-        setHistory(prevHistory => [newHistoryItem, ...prevHistory]);
-      } catch (err) {
-        console.error('Upload failed:', err);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    
-
   return (
     <div className="min-h-screen bg-background-light dark:bg-background-dark transition-colors duration-200">
       <header className="bg-surface-light dark:bg-surface-dark shadow-sm">
@@ -142,27 +168,40 @@ function App() {
             <h2 className="text-xl font-bold text-primary-dark dark:text-primary-light mb-4">
               History
             </h2>
-            <div className="space-y-12">
-              {history.map((session, idx) => (
-                <div key={session.sessionId} className="bg-surface-light dark:bg-surface-dark rounded-xl shadow p-6">
-                  <div className="flex items-center mb-4">
-                    <span className="font-semibold text-primary-dark dark:text-primary-light mr-4">Session {history.length - idx}</span>
-                    <span className="text-xs text-gray-500">{new Date(session.createdAt).toLocaleString()}</span>
-                  </div>
-                  <div className="flex flex-row gap-6">
-                    <div className="flex flex-col items-center">
-                      <img
-                        src={session.uploaded}
-                        alt="Uploaded"
-                        className="w-20 h-28 object-cover rounded-lg border border-gray-200 dark:border-gray-700 mb-2"
-                      />
-                      <span className="text-xs text-gray-500">Original</span>
+            {isHistoryLoading ? (
+              <div className="text-center py-8">
+                <div className="inline-block animate-spin rounded-full h-8 w-8 border-4 border-solid border-pink-600 border-r-transparent"></div>
+                <p className="mt-2 text-gray-600 dark:text-gray-400">Loading history...</p>
+              </div>
+            ) : (
+              <div className="space-y-12">
+                {history.length > 0 ? (
+                  history.map((session: HistoryItem, idx: number) => (
+                    <div key={session.sessionId} className="bg-surface-light dark:bg-surface-dark rounded-xl shadow p-6">
+                      <div className="flex items-center mb-4">
+                        <span className="font-semibold text-primary-dark dark:text-primary-light mr-4">Session {history.length - idx}</span>
+                        <span className="text-xs text-gray-500">{new Date(session.createdAt).toLocaleString()}</span>
+                      </div>
+                      <div className="flex flex-row gap-6">
+                        <div className="flex flex-col items-center">
+                          <img
+                            src={getImageSrc(session.uploaded)}
+                            alt="Uploaded"
+                            className="w-20 h-28 object-cover rounded-lg border border-gray-200 dark:border-gray-700 mb-2"
+                          />
+                          <span className="text-xs text-gray-500">Original</span>
+                        </div>
+                        <OutputGallery images={session.results} enableDownload={true} />
+                      </div>
                     </div>
-                    <OutputGallery images={session.results} enableDownload />
+                  ))
+                ) : (
+                  <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+                    No history found. Upload an image to get started!
                   </div>
-                </div>
-              ))}
-            </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </main>
@@ -170,4 +209,4 @@ function App() {
   );
 }
 
-export default App; 
+export default App;

@@ -1,6 +1,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { Download } from 'lucide-react';
+import backend_url  from '../config';
 
 interface StylizedImage {
   url: string;
@@ -28,6 +29,9 @@ const OutputGallery: React.FC<OutputGalleryProps> = ({ images, enableDownload })
     link.click();
     document.body.removeChild(link);
   };
+  const getImageSrc = (url: string) => {
+    return url.startsWith('https') ? url : `${backend_url}${url}`;
+  };
 
   return (
     <div className="flex flex-row justify-center gap-6 w-full">
@@ -42,7 +46,7 @@ const OutputGallery: React.FC<OutputGalleryProps> = ({ images, enableDownload })
           <div className="w-full aspect-[3/4] bg-gray-100 dark:bg-gray-800 rounded-xl flex items-center justify-center mb-4 overflow-hidden">
             {image.url ? (
               <img
-                src={image.url}
+                src={getImageSrc(image.url)}
                 alt={`${image.occasion} style`}
                 className="object-cover w-full h-full rounded-xl"
               />
