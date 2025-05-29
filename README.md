@@ -1,4 +1,4 @@
-# Fashion Outfit Stylizer
+# Outfit Recommender
 
 A modern web application that allows users to upload outfit images and receive stylized versions for different occasions.
 
